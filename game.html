@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
+    <title>Minecraft Dodge Game</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon.png">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #2c3e50;
+            font-family: 'Minecraft', Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .game-container {
+            text-align: center;
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+        }
+        canvas {
+            border: 4px solid #1e2a36;
+            background-color: #87CEEB;
+            image-rendering: pixelated;
+            width: 100%;
+            max-height: 90vh;
+            object-fit: contain;
+        }
+        .score {
+            font-size: 24px;
+            margin-top: 10px;
+            color: #fff;
+        }
+        .high-score {
+            font-size: 20px;
+            margin-top: 5px;
+            color: #f1c40f;
+        }
+        .level {
+            font-size: 20px;
+            margin-top: 5px;
+            color: #2ecc71;
+        }
+        .control-button {
+            position: absolute;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: 2px solid #fff;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-family: 'Minecraft', Arial, sans-serif;
+        }
+        .audio-control {
+            top: 10px;
+            right: 50px;
+        }
+        .fullscreen-control {
+            top: 10px;
+            right: 10px;
+        }
+        .control-button:hover {
+            background: rgba(0,0,0,0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="450"></canvas>
+        <div class="score">Score: <span id="scoreValue">0</span></div>
+        <div class="high-score">High Score: <span id="highScoreValue">0</span></div>
+        <div class="level">Level: <span id="levelValue">1</span></div>
+        <button class="control-button audio-control" id="audioToggle">🔊</button>
+        <button class="control-button fullscreen-control" id="fullscreenToggle">⛶</button>
+        <audio id="bgMusic" loop>
+            <source src="bgm.MP3" type="audio/mp3">
+        </audio>
+    </div>
+
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful');
+                }).catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('scoreValue');
+        const highScoreElement = document.getElementById('highScoreValue');
+        const levelElement = document.getElementById('levelValue');
+        const audioToggle = document.getElementById('audioToggle');
+        const fullscreenToggle = document.getElementById('fullscreenToggle');
+        
+        // Fullscreen handling
+        fullscreenToggle.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                canvas.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const gameWidth = 400;
+                const gameHeight = 600;
+                const scale = Math.min(screenWidth / gameWidth, screenHeight / gameHeight);
+                
+                canvas.style.width = `${gameWidth * scale}px`;
+                canvas.style.height = `${gameHeight * scale}px`;
+                canvas.style.border = '8px solid #1e2a36';
+                canvas.style.boxShadow = '0 0 50px rgba(0,0,0,0.5)';
+                fullscreenToggle.textContent = '⛶';
+            } else {
+                canvas.style.width = '';
+                canvas.style.height = '';
+                canvas.style.border = '4px solid #1e2a36';
+                canvas.style.boxShadow = '';
+                fullscreenToggle.textContent = '⛶';
+            }
+        });
+        
+        // Load high score from localStorage
+        let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+        highScoreElement.textContent = highScore;
+        
+        // Create audio context
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // Für Elise notes (simplified version)
+        const furEliseNotes = [
+            {note: 'E5', duration: 0.2}, {note: 'Eb5', duration: 0.2},
+            {note: 'E5', duration: 0.2}, {note: 'Eb5', duration: 0.2}, {note: 'E5', duration: 0.2},
+            {note: 'B4', duration: 0.2}, {note: 'D5', duration: 0.2}, {note: 'C5', duration: 0.2},
+            {note: 'A4', duration: 0.4},
+            {note: 'C4', duration: 0.2}, {note: 'E4', duration: 0.2}, {note: 'A4', duration: 0.2},
+            {note: 'B4', duration: 0.4},
+            {note: 'E4', duration: 0.2}, {note: 'Ab4', duration: 0.2}, {note: 'B4', duration: 0.2},
+            {note: 'C5', duration: 0.4}
+        ];
+
+        const noteFrequencies = {
+            'C4': 261.63, 'E4': 329.63, 'Ab4': 415.30, 'A4': 440.00,
+            'B4': 493.88, 'C5': 523.25, 'D5': 587.33, 'Eb5': 622.25,
+            'E5': 659.25
+        };
+
+        // Sprite creation functions
+        function createSteveSprite(x, y, width, height) {
+            ctx.fillStyle = '#8B4513'; // Steve's hair/head color
+            ctx.fillRect(x + width * 0.2, y, width * 0.6, height * 0.2); // Hair
+            
+            ctx.fillStyle = '#FFA07A'; // Steve's skin color
+            ctx.fillRect(x + width * 0.2, y + height * 0.2, width * 0.6, height * 0.2); // Face
+            
+            ctx.fillStyle = '#4169E1'; // Steve's shirt color
+            ctx.fillRect(x + width * 0.1, y + height * 0.4, width * 0.8, height * 0.3); // Shirt
+            
+            ctx.fillStyle = '#4A4A4A'; // Steve's pants color
+            ctx.fillRect(x + width * 0.2, y + height * 0.7, width * 0.6, height * 0.3); // Pants
+            
+            // Eyes
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + width * 0.3, y + height * 0.25, width * 0.1, height * 0.1);
+            ctx.fillRect(x + width * 0.6, y + height * 0.25, width * 0.1, height * 0.1);
+        }
+
+        function createLavaChickenSprite(x, y, width, height) {
+            // Chicken body (glowing red/orange for lava effect)
+            ctx.fillStyle = '#FF4500';
+            ctx.fillRect(x + width * 0.2, y + height * 0.3, width * 0.6, height * 0.4);
+            
+            // Chicken head
+            ctx.fillStyle = '#FF6347';
+            ctx.fillRect(x + width * 0.15, y + height * 0.1, width * 0.4, height * 0.3);
+            
+            // Beak
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(x + width * 0.05, y + height * 0.2, width * 0.2, height * 0.1);
+            
+            // Wings (with lava effect)
+            ctx.fillStyle = '#FF8C00';
+            ctx.fillRect(x, y + height * 0.3, width * 0.3, height * 0.3);
+            ctx.fillRect(x + width * 0.7, y + height * 0.3, width * 0.3, height * 0.3);
+            
+            // Lava particle effects
+            ctx.fillStyle = '#FFFF00';
+            for (let i = 0; i < 3; i++) {
+                const particleX = x + Math.random() * width;
+                const particleY = y + Math.random() * height;
+                ctx.fillRect(particleX, particleY, 3, 3);
+            }
+        }
+        
+        // Audio system
+        const sounds = {
+            bgm: null,
+            point: null,
+            collision: null,
+            start: null
+        };
+        
+        // Generate simple tones for sound effects
+        function createOscillator(freq, duration, type = 'sine', startTime = audioCtx.currentTime) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = type;
+            oscillator.frequency.value = freq;
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            gainNode.gain.setValueAtTime(0.2, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration);
+            
+            return { oscillator, gainNode };
+        }
+        
+        // Use the actual Minecraft movie soundtrack
+        function createBgMusic() {
+            const audioElement = document.getElementById('bgMusic');
+            audioElement.volume = 0.5;
+            
+            return {
+                play: function() {
+                    audioElement.currentTime = 0;
+                    audioElement.play().catch(e => console.log('Audio play error:', e));
+                },
+                stop: function() {
+                    audioElement.pause();
+                }
+            };
+        }
+        
+        // Initialize sounds
+        sounds.bgm = createBgMusic();
+        
+        function playPointSound() {
+            createOscillator(880, 0.1, 'sine');
+        }
+        
+        function playCollisionSound() {
+            createOscillator(100, 0.3, 'sawtooth');
+            setTimeout(() => createOscillator(80, 0.5, 'sawtooth'), 100);
+        }
+        
+        function playStartSound() {
+            [440, 554, 659].forEach((freq, i) => {
+                setTimeout(() => createOscillator(freq, 0.2, 'sine'), i * 150);
+            });
+        }
+        
+        function playLevelUpSound() {
+            [659, 659, 880].forEach((freq, i) => {
+                setTimeout(() => createOscillator(freq, 0.15, 'square'), i * 100);
+            });
+        }
+        
+        function showLevelUp() {
+            // Empty function - level up display removed
+        }
+        
+        let audioEnabled = true;
+
+        audioToggle.addEventListener('click', () => {
+            audioEnabled = !audioEnabled;
+            audioToggle.textContent = audioEnabled ? '🔊' : '🔇';
+            
+            if (audioEnabled) {
+                if (gameStarted && !gameOver) sounds.bgm.play();
+            } else {
+                sounds.bgm.stop();
+            }
+        });
+
+        // Game states
+        let score = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let animationId;
+        let level = 1;
+        let spawnRate = 0.01; // Starting spawn rate
+        let baseChickenSpeed = 2;
+
+        // Player object
+        const player = {
+            x: canvas.width / 2 - 25,
+            y: canvas.height - 70,
+            width: 50,
+            height: 70,
+            speed: 5,
+            dx: 0
+        };
+
+        // Rocks (now lava chickens) array
+        const rocks = [];
+
+        // Controls
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+        
+        // Touch controls
+        let touchX = 0;
+        let touchThreshold = 30;
+        
+        // Add touch controls
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchX = e.touches[0].clientX;
+            
+            // Start or restart game with touch
+            if (!gameStarted) {
+                startGame();
+            } else if (gameOver) {
+                resetGame();
+            }
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const currentX = e.touches[0].clientX;
+            const diffX = currentX - touchX;
+            
+            // Reset all keys
+            keys.ArrowLeft = false;
+            keys.ArrowRight = false;
+            
+            // Set direction based on touch movement
+            if (diffX < -touchThreshold) {
+                keys.ArrowLeft = true;
+            } else if (diffX > touchThreshold) {
+                keys.ArrowRight = true;
+            }
+            
+            touchX = currentX;
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            keys.ArrowLeft = false;
+            keys.ArrowRight = false;
+        });
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key in keys) {
+                keys[e.key] = true;
+            }
+            
+            if (!gameStarted && e.key === ' ') {
+                startGame();
+            } else if (gameOver && e.key === ' ') {
+                resetGame();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key in keys) {
+                keys[e.key] = false;
+            }
+        });
+
+        function createRock() {
+            const width = 40;
+            const height = 40;
+            const rock = {
+                x: Math.random() * (canvas.width - width),
+                y: -height,
+                width: width,
+                height: height,
+                speed: Math.random() * (level * 0.5) + baseChickenSpeed
+            };
+            rocks.push(rock);
+        }
+
+        function updatePlayer() {
+            player.dx = 0;
+            if (keys.ArrowLeft) player.dx = -player.speed;
+            if (keys.ArrowRight) player.dx = player.speed;
+
+            player.x += player.dx;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+        }
+
+        function updateRocks() {
+            if (Math.random() < spawnRate) {
+                createRock();
+            }
+
+            for (let i = rocks.length - 1; i >= 0; i--) {
+                const rock = rocks[i];
+                rock.y += rock.speed;
+
+                if (rock.y > canvas.height) {
+                    rocks.splice(i, 1);
+                    score++;
+                    scoreElement.textContent = score;
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreElement.textContent = highScore;
+                        localStorage.setItem('highScore', highScore);
+                    }
+                    
+                    // Level up every 10 points
+                    if (score % 10 === 0) {
+                        level++;
+                        document.getElementById('levelValue').textContent = level;
+                        spawnRate = Math.min(0.05, 0.01 + (level - 1) * 0.002);
+                        playLevelUpSound();
+                    }
+                    
+                    if (audioEnabled) playPointSound();
+                }
+
+                if (
+                    player.x < rock.x + rock.width &&
+                    player.x + player.width > rock.x &&
+                    player.y < rock.y + rock.height &&
+                    player.y + player.height > rock.y
+                ) {
+                    gameOver = true;
+                    if (audioEnabled) playCollisionSound();
+                    sounds.bgm.stop();
+                }
+            }
+        }
+
+        function drawPlayer() {
+            createSteveSprite(player.x, player.y, player.width, player.height);
+        }
+
+        function drawRocks() {
+            rocks.forEach(rock => {
+                createLavaChickenSprite(rock.x, rock.y, rock.width, rock.height);
+            });
+        }
+
+        function drawStartMenu() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            
+            // Title
+            ctx.font = '36px Minecraft, Arial';
+            ctx.fillText('Minecraft Dodge', canvas.width / 2, canvas.height / 2 - 100);
+            
+            // High Score
+            ctx.font = '24px Minecraft, Arial';
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 - 60);
+            
+            // Instructions
+            ctx.font = '18px Minecraft, Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText('How to Play:', canvas.width / 2, canvas.height / 2 - 20);
+            ctx.fillText('Use ← → arrow keys to move', canvas.width / 2, canvas.height / 2 + 10);
+            ctx.fillText('Avoid lava chickens to score points', canvas.width / 2, canvas.height / 2 + 40);
+            
+            // Start prompt
+            ctx.font = '24px Minecraft, Arial';
+            ctx.fillText('Press SPACE to Start', canvas.width / 2, canvas.height / 2 + 100);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = '36px Minecraft, Arial';
+            ctx.fillStyle = '#ff0000';
+            ctx.textAlign = 'center';
+            ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 50);
+            
+            ctx.font = '24px Minecraft, Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2);
+            ctx.fillStyle = '#f1c40f';
+            ctx.fillText(`High Score: ${highScore}`, canvas.width / 2, canvas.height / 2 + 40);
+            
+            ctx.font = '18px Minecraft, Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText('Press SPACE to Play Again', canvas.width / 2, canvas.height / 2 + 80);
+        }
+
+        function resetGame() {
+            score = 0;
+            level = 1;
+            spawnRate = 0.01;
+            scoreElement.textContent = score;
+            document.getElementById('levelValue').textContent = level;
+            rocks.length = 0;
+            player.x = canvas.width / 2 - 25;
+            gameOver = false;
+            gameStarted = true;
+            
+            if (audioEnabled) {
+                playStartSound();
+                sounds.bgm.play();
+            }
+            
+            animate();
+        }
+
+        function startGame() {
+            gameStarted = true;
+            if (audioEnabled) {
+                playStartSound();
+                sounds.bgm.play();
+            }
+            animate();
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw sky background
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!gameStarted) {
+                drawStartMenu();
+                return;
+            }
+
+            updatePlayer();
+            updateRocks();
+
+            drawPlayer();
+            drawRocks();
+
+            if (gameOver) {
+                drawGameOver();
+                cancelAnimationFrame(animationId);
+                return;
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // Show start menu
+        drawStartMenu();
+        
+        // Enable audio on first user interaction
+        document.addEventListener('click', function initAudio() {
+            audioCtx.resume();
+            document.removeEventListener('click', initAudio);
+        });
+    </script>
+</body>
+</html>
