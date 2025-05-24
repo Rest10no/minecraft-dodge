@@ -325,14 +325,61 @@
             ArrowRight: false
         };
         
-        // Touch controls
-        let touchX = 0;
-        let touchThreshold = 30;
+        // Add on-screen controls for mobile
+        const leftButton = document.createElement('button');
+        leftButton.innerHTML = '←';
+        leftButton.style.position = 'absolute';
+        leftButton.style.left = '20px';
+        leftButton.style.bottom = '20px';
+        leftButton.style.width = '60px';
+        leftButton.style.height = '60px';
+        leftButton.style.fontSize = '24px';
+        leftButton.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        leftButton.style.color = 'white';
+        leftButton.style.border = '2px solid white';
+        leftButton.style.borderRadius = '50%';
+        leftButton.style.zIndex = '100';
+        document.querySelector('.game-container').appendChild(leftButton);
         
-        // Add touch controls
+        const rightButton = document.createElement('button');
+        rightButton.innerHTML = '→';
+        rightButton.style.position = 'absolute';
+        rightButton.style.right = '20px';
+        rightButton.style.bottom = '20px';
+        rightButton.style.width = '60px';
+        rightButton.style.height = '60px';
+        rightButton.style.fontSize = '24px';
+        rightButton.style.backgroundColor = 'rgba(0,0,0,0.5)';
+        rightButton.style.color = 'white';
+        rightButton.style.border = '2px solid white';
+        rightButton.style.borderRadius = '50%';
+        rightButton.style.zIndex = '100';
+        document.querySelector('.game-container').appendChild(rightButton);
+        
+        // Button controls
+        leftButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            keys.ArrowLeft = true;
+        });
+        
+        leftButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            keys.ArrowLeft = false;
+        });
+        
+        rightButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            keys.ArrowRight = true;
+        });
+        
+        rightButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            keys.ArrowRight = false;
+        });
+        
+        // Touch controls for game start/restart
         canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            touchX = e.touches[0].clientX;
             
             // Start or restart game with touch
             if (!gameStarted) {
@@ -340,31 +387,6 @@
             } else if (gameOver) {
                 resetGame();
             }
-        });
-        
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            const currentX = e.touches[0].clientX;
-            const diffX = currentX - touchX;
-            
-            // Reset all keys
-            keys.ArrowLeft = false;
-            keys.ArrowRight = false;
-            
-            // Set direction based on touch movement
-            if (diffX < -touchThreshold) {
-                keys.ArrowLeft = true;
-            } else if (diffX > touchThreshold) {
-                keys.ArrowRight = true;
-            }
-            
-            touchX = currentX;
-        });
-        
-        canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            keys.ArrowLeft = false;
-            keys.ArrowRight = false;
         });
 
         // Keyboard controls
@@ -483,12 +505,12 @@
             ctx.font = '18px Minecraft, Arial';
             ctx.fillStyle = '#fff';
             ctx.fillText('How to Play:', canvas.width / 2, canvas.height / 2 - 20);
-            ctx.fillText('Use ← → arrow keys to move', canvas.width / 2, canvas.height / 2 + 10);
+            ctx.fillText('Use on-screen buttons to move', canvas.width / 2, canvas.height / 2 + 10);
             ctx.fillText('Avoid lava chickens to score points', canvas.width / 2, canvas.height / 2 + 40);
             
             // Start prompt
             ctx.font = '24px Minecraft, Arial';
-            ctx.fillText('Press SPACE to Start', canvas.width / 2, canvas.height / 2 + 100);
+            ctx.fillText('Tap screen to Start', canvas.width / 2, canvas.height / 2 + 100);
         }
 
         function drawGameOver() {
@@ -508,7 +530,7 @@
             
             ctx.font = '18px Minecraft, Arial';
             ctx.fillStyle = '#fff';
-            ctx.fillText('Press SPACE to Play Again', canvas.width / 2, canvas.height / 2 + 80);
+            ctx.fillText('Tap screen to Play Again', canvas.width / 2, canvas.height / 2 + 80);
         }
 
         function resetGame() {
