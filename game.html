@@ -334,50 +334,63 @@
                 return;
             }
             
-            // Store touch position
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            lastTouchX = touchStartX;
-            lastTouchY = touchStartY;
-            isTouching = true;
+            // Immediately set player position on touch
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const scaleFactor = canvas.width / rect.width;
+            
+            // Set player position directly (centered on touch)
+            const newX = touchX * scaleFactor - player.width / 2;
+            
+            // Keep player within bounds
+            if (newX < 0) {
+                player.x = 0;
+            } else if (newX + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            } else {
+                player.x = newX;
+            }
         });
         
-        // Event listener for touch move to continuously control direction
+        // Event listener for touch move to directly control player position
         canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             
-            // Only process if game is active and touching
-            if (!gameStarted || gameOver || !isTouching) return;
+            // Only process if game is active
+            if (!gameStarted || gameOver) return;
             
-            const currentX = e.touches[0].clientX;
+            // Get touch position relative to canvas
+            const rect = canvas.getBoundingClientRect();
+            const touchX = e.touches[0].clientX - rect.left;
+            const scaleFactor = canvas.width / rect.width;
             
-            // Calculate movement from last position
-            const diffX = currentX - lastTouchX;
+            // Set player position directly (centered on touch)
+            const newX = touchX * scaleFactor - player.width / 2;
             
-            // Only change direction if movement is significant
-            const minMoveDistance = 5;
-            
-            if (Math.abs(diffX) > minMoveDistance) {
-                // Determine direction of movement
-                if (diffX > 0) {
-                    keys.ArrowLeft = false;
-                    keys.ArrowRight = true;
-                } else if (diffX < 0) {
-                    keys.ArrowLeft = true;
-                    keys.ArrowRight = false;
-                }
-                
-                // Update last touch position
-                lastTouchX = currentX;
+            // Keep player within bounds
+            if (newX < 0) {
+                player.x = 0;
+            } else if (newX + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            } else {
+                player.x = newX;
             }
+            
+            // Reset keyboard controls
+            keys.ArrowLeft = false;
+            keys.ArrowRight = false;
         });
         
         // Event listener for touch end
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             isTouching = false;
-            keys.ArrowLeft = false;
-            keys.ArrowRight = false;
+        });
+        
+        // Event listener for touch cancel
+        canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            isTouching = false;
         });
 
         // Keyboard controls
@@ -413,12 +426,15 @@
         }
 
         function updatePlayer() {
-            player.dx = 0;
-            if (keys.ArrowLeft) player.dx = -player.speed;
-            if (keys.ArrowRight) player.dx = player.speed;
+            // Only use keyboard controls if not being controlled by touch
+            if (!isTouching) {
+                player.dx = 0;
+                if (keys.ArrowLeft) player.dx = -player.speed;
+                if (keys.ArrowRight) player.dx = player.speed;
+                player.x += player.dx;
+            }
 
-            player.x += player.dx;
-
+            // Ensure player stays within bounds
             if (player.x < 0) player.x = 0;
             if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
         }
